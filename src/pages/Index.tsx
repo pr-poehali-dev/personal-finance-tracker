@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -237,6 +237,16 @@ const Index = () => {
           </Card>
         </div>
 
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>График баланса</CardTitle>
+            <CardDescription>Изменение баланса за последние 7 дней</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <BalanceChart transactions={transactions} />
+          </CardContent>
+        </Card>
+
         <Tabs defaultValue="transactions" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="transactions">Транзакции</TabsTrigger>
@@ -429,6 +439,77 @@ const Index = () => {
           </TabsContent>
         </Tabs>
       </main>
+    </div>
+  );
+};
+
+const BalanceChart = ({ transactions }: { transactions: Transaction[] }) => {
+  const chartData = useMemo(() => {
+    const sortedTransactions = [...transactions].sort((a, b) => 
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
+    const dailyBalances: { [key: string]: number } = {};
+    let runningBalance = 0;
+
+    sortedTransactions.forEach((t) => {
+      const change = t.type === 'income' ? t.amount : -t.amount;
+      runningBalance += change;
+      dailyBalances[t.date] = runningBalance;
+    });
+
+    const dates = Object.keys(dailyBalances).sort();
+    const last7Days = dates.slice(-7);
+
+    return last7Days.map(date => ({
+      date,
+      balance: dailyBalances[date],
+      label: new Date(date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
+    }));
+  }, [transactions]);
+
+  const maxBalance = Math.max(...chartData.map(d => d.balance), 0);
+  const minBalance = Math.min(...chartData.map(d => d.balance), 0);
+  const range = maxBalance - minBalance || 1;
+
+  return (
+    <div className="space-y-4">
+      <div className="h-64 flex items-end justify-between gap-2">
+        {chartData.map((data, index) => {
+          const height = ((data.balance - minBalance) / range) * 100;
+          const isPositive = data.balance >= 0;
+          
+          return (
+            <div key={data.date} className="flex-1 flex flex-col items-center gap-2">
+              <div className="w-full flex flex-col justify-end h-full relative group">
+                <div 
+                  className={`w-full rounded-t-lg transition-all duration-300 hover:opacity-80 ${
+                    isPositive ? 'bg-gradient-to-t from-green-500 to-green-400' : 'bg-gradient-to-t from-red-500 to-red-400'
+                  }`}
+                  style={{ height: `${Math.max(height, 5)}%` }}
+                >
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-popover text-popover-foreground px-2 py-1 rounded text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-lg">
+                    {data.balance.toLocaleString('ru-RU')} ₽
+                  </div>
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground font-medium mt-1">
+                {data.label}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center justify-center gap-4 pt-4 border-t">
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 rounded-full bg-green-500"></div>
+          <span className="text-sm text-muted-foreground">Положительный баланс</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 rounded-full bg-red-500"></div>
+          <span className="text-sm text-muted-foreground">Отрицательный баланс</span>
+        </div>
+      </div>
     </div>
   );
 };
